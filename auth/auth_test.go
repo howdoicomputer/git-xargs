@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gruntwork-io/git-xargs/auth"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -11,7 +12,8 @@ import (
 func TestConfigureGithubClient(t *testing.T) {
 	t.Parallel()
 
-	client := ConfigureGithubClient()
+	clientConf := auth.NewClientConfig()
+	client := ConfigureGithubClient(clientConf)
 	assert.NotNil(t, client)
 }
 

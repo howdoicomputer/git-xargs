@@ -43,10 +43,22 @@ func cloneLocalRepository(config *config.GitXargsConfig, repo *github.Repository
 		return repositoryDir, nil, errors.WithStackTrace(tmpDirErr)
 	}
 
+	var singleBranch bool
+	var branch plumbing.ReferenceName
+	if config.CloneBranch != "" {
+		branch = plumbing.NewBranchReferenceName(config.CloneBranch)
+		singleBranch = true
+	} else {
+		singleBranch = false
+	}
+
 	gitProgressBuffer := bytes.NewBuffer(nil)
 	localRepository, err := config.GitClient.PlainClone(repositoryDir, false, &git.CloneOptions{
-		URL:      repo.GetCloneURL(),
-		Progress: gitProgressBuffer,
+		URL:           repo.GetCloneURL(),
+		Progress:      gitProgressBuffer,
+		SingleBranch:  singleBranch,
+		ReferenceName: branch,
+		Depth:         config.CloneDepth,
 		Auth: &http.BasicAuth{
 			Username: repo.GetOwner().GetLogin(),
 			Password: os.Getenv("GITHUB_OAUTH_TOKEN"),
@@ -90,6 +102,7 @@ func getLocalRepoHeadRef(config *config.GitXargsConfig, localRepository *git.Rep
 
 		return nil, errors.WithStackTrace(headErr)
 	}
+
 	return ref, nil
 }
 
@@ -223,7 +236,7 @@ func checkoutLocalBranch(config *config.GitXargsConfig, ref *plumbing.Reference,
 // updateRepo will check for any changes in worktree as a result of script execution, and if any are present,
 // add any untracked, deleted or modified files, create a commit using the supplied or default commit message,
 // push the code to the remote repo, and open a pull request.
-func updateRepo(config *config.GitXargsConfig, repositoryDir string, worktree *git.Worktree, remoteRepository *github.Repository, localRepository *git.Repository, branchName string) error {
+func UpdateRepoLocal(config *config.GitXargsConfig, repositoryDir string, worktree *git.Worktree, remoteRepository *github.Repository, localRepository *git.Repository) error {
 	logger := logging.GetLogger("git-xargs")
 
 	status, statusErr := worktree.Status()
@@ -258,14 +271,20 @@ func updateRepo(config *config.GitXargsConfig, repositoryDir string, worktree *g
 		return commitErr
 	}
 
+	return nil
+}
+
+// Updates a repository remotely by taking the local branch and pushing it to a remote origin. Additionally, it will then open a pull request for that branch.
+//
+func UpdateRepoRemote(config *config.GitXargsConfig, gxargsrepo *GitXargsRepository) error {
 	// Push the local branch containing all of our changes from executing the supplied command
-	pushBranchErr := pushLocalBranch(config, remoteRepository, localRepository)
+	pushBranchErr := pushLocalBranch(config, gxargsrepo.RepositoryRemote, gxargsrepo.RepositoryLocal)
 	if pushBranchErr != nil {
 		return pushBranchErr
 	}
 
 	// Open a pull request on GitHub, of the recently pushed branch against the repository default branch
-	openPullRequestErr := openPullRequest(config, remoteRepository, branchName)
+	openPullRequestErr := openPullRequest(config, gxargsrepo.RepositoryRemote, gxargsrepo.Branch)
 	if openPullRequestErr != nil {
 		return openPullRequestErr
 	}
@@ -498,6 +517,21 @@ func openPullRequest(config *config.GitXargsConfig, repo *github.Repository, bra
 		// Track successful opening of the pull request, extracting the HTML url to the PR itself for easier review
 		config.Stats.TrackPullRequest(repo.GetName(), pr.GetHTMLURL())
 	}
+
+	if len(config.Assignees) != 0 {
+		assignees := github.ReviewersRequest{Reviewers: config.Assignees}
+		_, _, err := config.GithubClient.PullRequests.RequestReviewers(context.Background(), *repo.GetOwner().Login, repo.GetName(), pr.GetNumber(), assignees)
+
+		if err != nil {
+			logger.WithFields(logrus.Fields{
+				"Error": err,
+				"Head":  branch,
+				"Base":  repoDefaultBranch,
+				"Body":  descriptionToUse,
+			}).Debug(err)
+		}
+	}
+
 	return nil
 }
 

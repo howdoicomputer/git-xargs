@@ -35,7 +35,7 @@ func TestProcessRepo(t *testing.T) {
 	// growing in size over time with test data
 	defer cleanupLocalTestRepoChanges(t, testConfig)
 
-	processErr := processRepo(testConfig, mocks.GetMockGithubRepo())
+	processErr, _ := ProcessRepo(testConfig, mocks.GetMockGithubRepo())
 	assert.NoError(t, processErr)
 }
 

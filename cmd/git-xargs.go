@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/gruntwork-io/git-xargs/auth"
+	"github.com/gruntwork-io/git-xargs/common"
 	"github.com/gruntwork-io/git-xargs/config"
 	gitxargs_io "github.com/gruntwork-io/git-xargs/io"
 	"github.com/gruntwork-io/git-xargs/repository"
@@ -20,20 +21,28 @@ import (
 // to an internal representation of the data supplied by the user
 func parseGitXargsConfig(c *cli.Context) (*config.GitXargsConfig, error) {
 	config := config.NewGitXargsConfig()
-	config.Draft = c.Bool("draft")
-	config.DryRun = c.Bool("dry-run")
-	config.SkipPullRequests = c.Bool("skip-pull-requests")
-	config.SkipArchivedRepos = c.Bool("skip-archived-repos")
-	config.BranchName = c.String("branch-name")
-	config.BaseBranchName = c.String("base-branch-name")
-	config.CommitMessage = c.String("commit-message")
-	config.PullRequestTitle = c.String("pull-request-title")
-	config.PullRequestDescription = c.String("pull-request-description")
-	config.ReposFile = c.String("repos")
-	config.GithubOrg = c.String("github-org")
-	config.RepoSlice = c.StringSlice("repo")
-	config.MaxConcurrentRepos = c.Int("max-concurrent-repos")
+	config.Draft = c.Bool(common.DraftPullRequestFlagName)
+	config.DryRun = c.Bool(common.DryRunFlagName)
+	config.SkipPullRequests = c.Bool(common.SkipPullRequestsFlagName)
+	config.SkipArchivedRepos = c.Bool(common.SkipArchivedReposFlagName)
+	config.BranchName = c.String(common.BranchFlagName)
+	config.BaseBranchName = c.String(common.BaseBranchFlagName)
+	config.CommitMessage = c.String(common.CommitMessageFlagName)
+	config.PullRequestTitle = c.String(common.PullRequestTitleFlagName)
+	config.PullRequestDescription = c.String(common.PullRequestDescriptionFlagName)
+	config.ReposFile = c.String(common.ReposFileFlagName)
+	config.GithubOrg = c.String(common.GithubOrgFlagName)
+	config.RepoSlice = c.StringSlice(common.RepoFlagName)
+	config.MaxConcurrentRepos = c.Int(common.MaxConcurrentReposFlagName)
+	config.CloneBranch = c.String(common.CloneBranchFlagName)
+	config.CloneDepth = c.Int(common.CloneDepthFlagName)
+	config.Assignees = c.StringSlice(common.AssigneesFlagName)
+	config.Internal = c.Bool(common.InternalFlagName)
 	config.Args = c.Args()
+
+	clientConfig := auth.NewClientConfig()
+	clientConfig.InternalHost = config.Internal
+	config.GithubClient = auth.ConfigureGithubClient(clientConfig)
 
 	shouldReadStdIn, err := dataBeingPipedToStdIn()
 	if err != nil {

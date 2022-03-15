@@ -30,6 +30,10 @@ type GitXargsConfig struct {
 	GithubClient           auth.GithubClient
 	GitClient              local.GitClient
 	Stats                  *stats.RunStats
+	CloneBranch            string
+	CloneDepth             int
+	Assignees              []string
+	Internal               bool
 }
 
 // NewGitXargsConfig sets reasonable defaults for a GitXargsConfig and returns a pointer to the config
@@ -50,15 +54,18 @@ func NewGitXargsConfig() *GitXargsConfig {
 		RepoSlice:              []string{},
 		RepoFromStdIn:          []string{},
 		Args:                   []string{},
-		GithubClient:           auth.ConfigureGithubClient(),
 		GitClient:              local.NewGitClient(local.GitProductionProvider{}),
 		Stats:                  stats.NewStatsTracker(),
+		CloneBranch:            "",
+		CloneDepth:             1,
+		Internal:               false,
 	}
 }
 
 func NewGitXargsTestConfig() *GitXargsConfig {
-
+	clientConfig := auth.NewClientConfig()
 	config := NewGitXargsConfig()
+	config.GithubClient = auth.ConfigureGithubClient(clientConfig)
 
 	uniqueID := util.RandStringBytes(9)
 	config.BranchName = fmt.Sprintf("test-branch-%s", uniqueID)

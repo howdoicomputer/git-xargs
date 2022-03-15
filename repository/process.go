@@ -9,8 +9,9 @@ import (
 )
 
 // ProcessRepos loops through every repo we've selected and use a WaitGroup so that the processing can happen in parallel
-func ProcessRepos(gitxargsConfig *config.GitXargsConfig, repos []*github.Repository) error {
+func ProcessRepos(gitxargsConfig *config.GitXargsConfig, repos []*github.Repository) ([]*GitXargsRepository, error) {
 	logger := logging.GetLogger("git-xargs")
+	var gitXargsRepositories []*GitXargsRepository
 
 	// Limit the number of concurrent goroutines using the MaxConcurrentRepos config value
 	// MaxConcurrentRepos == 0 will fall back to unlimited (previous default behavior)
@@ -22,19 +23,29 @@ func ProcessRepos(gitxargsConfig *config.GitXargsConfig, repos []*github.Reposit
 			defer wg.Done()
 			// For each repo, run the supplied command against it and, if it succeeds without error,
 			// commit the changes, push the local branch to remote and use the GitHub API to open a pr
-			processErr := processRepo(gitxargsConfig, repo)
-			if processErr != nil {
+			processLocalErr, gxargsrepo := ProcessRepo(gitxargsConfig, repo)
+			if processLocalErr != nil {
 				logger.WithFields(logrus.Fields{
-					"Repo name": repo.GetName(), "Error": processErr,
+					"Repo name": repo.GetName(), "Error": processLocalErr,
 				}).Debug("Error encountered while processing repo")
+				return processLocalErr
 			}
-			return processErr
 
+			processRemoteErr := UpdateRepoRemote(gitxargsConfig, gxargsrepo)
+			if processRemoteErr != nil {
+				logger.WithFields(logrus.Fields{
+					"Repo name": repo.GetName(), "Error": processLocalErr,
+				}).Debug("Error encountered while pushing to repo remote.")
+				return processRemoteErr
+			}
+
+			gitXargsRepositories = append(gitXargsRepositories, gxargsrepo)
+			return nil
 		}(gitxargsConfig, repo)
 	}
 	wg.Wait()
 
-	return nil
+	return gitXargsRepositories, nil
 }
 
 // 1. Attempt to clone it to the local filesystem. To avoid conflicts, this generates a new directory for each repo FOR EACH run, so heavy use of this tool may inflate your /tmp/ directory size
@@ -46,51 +57,55 @@ func ProcessRepos(gitxargsConfig *config.GitXargsConfig, repos []*github.Reposit
 // 7. Via the GitHub API, open a pull request of the newly pushed branch against the main branch of the repo
 // 8. Track all successfully opened pull requests via the stats tracker so that we can print them out as part of our final
 // run report that is displayed in table format to the operator following each run
-func processRepo(config *config.GitXargsConfig, repo *github.Repository) error {
+func ProcessRepo(config *config.GitXargsConfig, repo *github.Repository) (error error, gxargsrepo *GitXargsRepository) {
 	logger := logging.GetLogger("git-xargs")
+	logger.Debug("starting to process repo")
+	gxargsrepo = &GitXargsRepository{RepositoryRemote: repo}
 
 	// Create a new temporary directory in the default temp directory of the system, but append
 	// git-xargs-<repo-name> to it so that it's easier to find when you're looking for it
 	repositoryDir, localRepository, cloneErr := cloneLocalRepository(config, repo)
-
 	if cloneErr != nil {
-		return cloneErr
+		return cloneErr, gxargsrepo
 	}
 
 	// Get HEAD ref from the repo
 	ref, headRefErr := getLocalRepoHeadRef(config, localRepository, repo)
 	if headRefErr != nil {
-		return headRefErr
+		return headRefErr, gxargsrepo
 	}
 
 	// Get the worktree for the given local repository, so we can examine any changes made by script operations
 	worktree, worktreeErr := getLocalWorkTree(repositoryDir, localRepository, repo)
-
 	if worktreeErr != nil {
-		return worktreeErr
+		return worktreeErr, gxargsrepo
 	}
 
 	// Create a branch in the locally cloned copy of the repo to hold all the changes that may result from script execution
 	// Also, attempt to pull the latest from the remote branch if it exists
 	branchName, branchErr := checkoutLocalBranch(config, ref, worktree, repo, localRepository)
 	if branchErr != nil {
-		return branchErr
+		return branchErr, gxargsrepo
 	}
 
-	//Run the specified command
+	gxargsrepo.Branch = branchName.String()
+
+	// Run the specified command
 	commandErr := executeCommand(config, repositoryDir, repo)
 	if commandErr != nil {
-		return commandErr
+		return commandErr, gxargsrepo
 	}
 
-	// Commit and push the changes to Git and open a PR
-	if err := updateRepo(config, repositoryDir, worktree, repo, localRepository, branchName.String()); err != nil {
-		return err
+	if err := UpdateRepoLocal(config, repositoryDir, worktree, repo, localRepository); err != nil {
+		return err, gxargsrepo
 	}
+
+	gxargsrepo.RepositoryDir = repositoryDir
+	gxargsrepo.RepositoryLocal = localRepository
 
 	logger.WithFields(logrus.Fields{
 		"Repo name": repo.GetName(),
 	}).Info("Repository successfully processed")
 
-	return nil
+	return nil, gxargsrepo
 }

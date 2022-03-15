@@ -20,6 +20,10 @@ const (
 	DefaultPullRequestTitle        = "git-xargs programmatic pull request"
 	DefaultPullRequestDescription  = "git-xargs programmatic pull request"
 	DefaultMaxConcurrentRepos      = 0
+	CloneBranchFlagName            = "clone-branch"
+	CloneDepthFlagName             = "clone-depth"
+	AssigneesFlagName              = "assignees"
+	InternalFlagName               = "internal"
 )
 
 var (
@@ -78,5 +82,21 @@ var (
 		Name:  MaxConcurrentReposFlagName,
 		Usage: "Limits the number of concurrent processed repositories. This is only useful if you encounter issues and need throttling when running on a very large number of repos.  Default is 0 (Unlimited)",
 		Value: DefaultMaxConcurrentRepos,
+	}
+	CloneBranch = cli.StringFlag{
+		Name:  CloneBranchFlagName,
+		Usage: "Specifies a target branch to pull down if you ONLY want to clone a single branch; use in conjunction with clone-depth",
+	}
+	CloneDepth = cli.IntFlag{
+		Name:  CloneDepthFlagName,
+		Usage: "Specifies git clone depth",
+	}
+	Assignees = cli.StringSliceFlag{
+		Name:  AssigneesFlagName,
+		Usage: "A list of assignees to apply to a pull request.",
+	}
+	Internal = cli.BoolFlag{
+		Name:  InternalFlagName,
+		Usage: "Whether or not to bypass using Github's API and instead to rely on an internal Github Enterprise host",
 	}
 )

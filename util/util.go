@@ -18,7 +18,6 @@ const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 // and it only returns an AllowedRepo if the user-supplied input looks valid. Note this does not actually look
 // up the repo via the GitHub API because that's slow, and we do it later when converting repo names to GitHub response structs.
 func ConvertStringToAllowedRepo(repoInput string) *types.AllowedRepo {
-
 	logger := logging.GetLogger("git-xargs")
 
 	// The regex for all common special characters to remove from the repo lines in the allowed repos file

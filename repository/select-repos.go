@@ -250,9 +250,10 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 			"Repository": repo.GetName(),
 		}).Debug("Repo will have all targeted scripts run against it")
 	}
+
 	// Now that we've gathered the repos we're going to operate on, do the actual processing by running the
 	// user-defined scripts against each repo and handling the resulting git operations that follow
-	if err := ProcessRepos(config, reposToIterate); err != nil {
+	if _, err := ProcessRepos(config, reposToIterate); err != nil {
 		return err
 	}
 

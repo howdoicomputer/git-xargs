@@ -36,6 +36,7 @@ func getFileDefinedRepos(GithubClient auth.GithubClient, allowedRepos []*types.A
 				"Response Status Code": resp.StatusCode,
 				"AllowedRepoOwner":     allowedRepo.Organization,
 				"AllowedRepoName":      allowedRepo.Name,
+				"Host":                 GithubClient.Host,
 			}).Debug("error getting single repo")
 
 			if resp.StatusCode == 404 {
@@ -62,6 +63,7 @@ func getFileDefinedRepos(GithubClient auth.GithubClient, allowedRepos []*types.A
 			allRepos = append(allRepos, repo)
 		}
 	}
+
 	return allRepos, nil
 }
 

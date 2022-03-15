@@ -48,9 +48,9 @@ func PrintRepoReport(allEvents []types.AnnotatedEvent, runReport *types.RunRepor
 		fmt.Println(" REPOS SUPPLIED VIA --repos FILE FLAG")
 		fileProvidedReposPrinter.Print(runReport.FileProvidedRepos)
 	}
+
 	// For each event type, print a summary of the repos in that category
 	for _, ae := range allEvents {
-
 		var reducedRepos []types.ReducedRepo
 
 		printer := tableprinter.New(os.Stdout)
@@ -101,7 +101,6 @@ func PrintRepoReport(allEvents []types.AnnotatedEvent, runReport *types.RunRepor
 		configurePrinterStyling(pullRequestPrinter)
 		pullRequestPrinter.Print(pullRequests)
 		fmt.Println()
-
 	}
 
 	if len(draftPullRequests) > 0 {
@@ -113,6 +112,5 @@ func PrintRepoReport(allEvents []types.AnnotatedEvent, runReport *types.RunRepor
 		configurePrinterStyling(pullRequestPrinter)
 		pullRequestPrinter.Print(draftPullRequests)
 		fmt.Println()
-
 	}
 }

@@ -105,7 +105,15 @@ func handleRepoProcessing(config *config.GitXargsConfig) error {
 	// Update raw command supplied
 	config.Stats.SetCommand(config.Args)
 
-	if err := repository.OperateOnRepos(config); err != nil {
+	repos, err := repository.OperateOnRepos(config)
+	if err != nil {
+		return err
+	}
+
+	// Now that we've gathered the repos we're going to operate on, do the actual processing by running the
+	// user-defined scripts against each repo and handling the resulting git operations that follow
+	_, err = repository.ProcessRepos(config, repos)
+	if err != nil {
 		return err
 	}
 

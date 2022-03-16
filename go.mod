@@ -17,3 +17,5 @@ require (
 	golang.org/x/oauth2 v0.0.0-20200902213428-5d25da1a8d43
 	google.golang.org/appengine v1.6.7 // indirect
 )
+
+replace github.com/src-d/go-git => github.com/howdoicomputer/git-xargs v0.0.15-0.20220315184722-f1cd231c4b91

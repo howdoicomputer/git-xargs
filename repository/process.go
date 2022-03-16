@@ -57,35 +57,35 @@ func ProcessRepos(gitxargsConfig *config.GitXargsConfig, repos []*github.Reposit
 // 7. Via the GitHub API, open a pull request of the newly pushed branch against the main branch of the repo
 // 8. Track all successfully opened pull requests via the stats tracker so that we can print them out as part of our final
 // run report that is displayed in table format to the operator following each run
-func ProcessRepo(config *config.GitXargsConfig, repo *github.Repository) (error error, gxargsrepo *GitXargsRepository) {
+func ProcessRepo(config *config.GitXargsConfig, repo *github.Repository) (*GitXargsRepository, error) {
 	logger := logging.GetLogger("git-xargs")
 	logger.Debug("starting to process repo")
-	gxargsrepo = &GitXargsRepository{RepositoryRemote: repo}
+	gxargsrepo := &GitXargsRepository{RepositoryRemote: repo}
 
 	// Create a new temporary directory in the default temp directory of the system, but append
 	// git-xargs-<repo-name> to it so that it's easier to find when you're looking for it
 	repositoryDir, localRepository, cloneErr := cloneLocalRepository(config, repo)
 	if cloneErr != nil {
-		return cloneErr, gxargsrepo
+		return gxargsrepo, cloneErr
 	}
 
 	// Get HEAD ref from the repo
 	ref, headRefErr := getLocalRepoHeadRef(config, localRepository, repo)
 	if headRefErr != nil {
-		return headRefErr, gxargsrepo
+		return gxargsrepo, headRefErr
 	}
 
 	// Get the worktree for the given local repository, so we can examine any changes made by script operations
 	worktree, worktreeErr := getLocalWorkTree(repositoryDir, localRepository, repo)
 	if worktreeErr != nil {
-		return worktreeErr, gxargsrepo
+		return gxargsrepo, worktreeErr
 	}
 
 	// Create a branch in the locally cloned copy of the repo to hold all the changes that may result from script execution
 	// Also, attempt to pull the latest from the remote branch if it exists
 	branchName, branchErr := checkoutLocalBranch(config, ref, worktree, repo, localRepository)
 	if branchErr != nil {
-		return branchErr, gxargsrepo
+		return gxargsrepo, branchErr
 	}
 
 	gxargsrepo.Branch = branchName.String()
@@ -93,11 +93,11 @@ func ProcessRepo(config *config.GitXargsConfig, repo *github.Repository) (error 
 	// Run the specified command
 	commandErr := executeCommand(config, repositoryDir, repo)
 	if commandErr != nil {
-		return commandErr, gxargsrepo
+		return gxargsrepo, commandErr
 	}
 
 	if err := UpdateRepoLocal(config, repositoryDir, worktree, repo, localRepository); err != nil {
-		return err, gxargsrepo
+		return gxargsrepo, nil
 	}
 
 	gxargsrepo.RepositoryDir = repositoryDir
@@ -107,5 +107,5 @@ func ProcessRepo(config *config.GitXargsConfig, repo *github.Repository) (error 
 		"Repo name": repo.GetName(),
 	}).Info("Repository successfully processed")
 
-	return nil, gxargsrepo
+	return gxargsrepo, nil
 }

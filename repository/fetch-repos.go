@@ -22,7 +22,6 @@ func getFileDefinedRepos(GithubClient auth.GithubClient, allowedRepos []*types.A
 	var allRepos []*github.Repository
 
 	for _, allowedRepo := range allowedRepos {
-
 		logger.WithFields(logrus.Fields{
 			"Organization": allowedRepo.Organization,
 			"Name":         allowedRepo.Name,
@@ -69,7 +68,6 @@ func getFileDefinedRepos(GithubClient auth.GithubClient, allowedRepos []*types.A
 
 // getReposByOrg takes the string name of a GitHub organization and pages through the API to fetch all of its repositories
 func getReposByOrg(config *config.GitXargsConfig) ([]*github.Repository, error) {
-
 	logger := logging.GetLogger("git-xargs")
 
 	// Page through all of the organization's repos, collecting them in this slice

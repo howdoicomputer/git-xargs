@@ -65,12 +65,12 @@ func (r RepoSelection) GetGithubOrg() string {
 
 // selectReposViaInput will examine the various repo and github-org flags to determine which should be selected and processed (only one at a time is used)
 func selectReposViaInput(config *config.GitXargsConfig) (*RepoSelection, error) {
-
 	def := &RepoSelection{
 		SelectionType:          GithubOrganization,
 		AllowedRepos:           []*types.AllowedRepo{},
 		GithubOrganizationName: config.GithubOrg,
 	}
+
 	switch getPreferredOrderOfRepoSelections(config) {
 	case ExplicitReposOnCommandLine:
 		config.Stats.SetSelectionMode(string(ExplicitReposOnCommandLine))
@@ -89,7 +89,6 @@ func selectReposViaInput(config *config.GitXargsConfig) (*RepoSelection, error) 
 		}, nil
 
 	case ReposFilePath:
-
 		config.Stats.SetSelectionMode(string(ReposFilePath))
 
 		allowedRepos, err := io.ProcessAllowedRepos(config.ReposFile)
@@ -104,7 +103,6 @@ func selectReposViaInput(config *config.GitXargsConfig) (*RepoSelection, error) 
 		}, nil
 
 	case GithubOrganization:
-
 		config.Stats.SetSelectionMode(string(GithubOrganization))
 
 		return def, nil
@@ -170,7 +168,6 @@ func selectReposViaRepoFlag(inputRepos []string) ([]*types.AllowedRepo, []string
 func fetchUserProvidedReposViaGithubAPI(githubClient auth.GithubClient, rs RepoSelection, stats *stats.RunStats) ([]*github.Repository, error) {
 	ar := rs.GetAllowedRepos()
 	return getFileDefinedRepos(githubClient, ar, stats)
-
 }
 
 // OperateOnRepos acts as a switch, depending upon whether the user provided an explicit list of repos to operate.
@@ -184,8 +181,7 @@ func fetchUserProvidedReposViaGithubAPI(githubClient auth.GithubClient, rs RepoS
 // for dealing with a repo throughout this tool, and that is the *github.Repository type provided by the go-github
 // library. Therefore, this function serves the purpose of creating that uniform interface, by looking up flat file-provided
 // repos via go-github, so that we're only ever dealing with pointers to github.Repositories going forward.
-func OperateOnRepos(config *config.GitXargsConfig) error {
-
+func OperateOnRepos(config *config.GitXargsConfig) ([]*github.Repository, error) {
 	logger := logging.GetLogger("git-xargs")
 
 	// The set of GitHub repositories the tool will actually process
@@ -193,13 +189,11 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 
 	// repoSelection is a representations of the user-supplied input, containing the repo organization and name
 	repoSelection, err := selectReposViaInput(config)
-
 	if err != nil {
-		return err
+		return reposToIterate, err
 	}
 
 	switch repoSelection.GetCriteria() {
-
 	case GithubOrganization:
 		// If githubOrganization is set, the user did not provide a flat file or explicit repos via the -repo(s) flags, so we're just looking up all the GitHub
 		// repos via their Organization name via the GitHub API
@@ -209,8 +203,10 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 				"Error":        err,
 				"Organization": config.GithubOrg,
 			}).Debug("Failure looking up repos for organization")
-			return err
+
+			return reposToIterate, err
 		}
+
 		// We gather all the repos by fetching them from the GitHub API, paging through the results of the supplied organization
 		reposToIterate = reposFetchedFromGithubAPI
 
@@ -219,7 +215,7 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 	case ReposFilePath:
 		githubRepos, err := fetchUserProvidedReposViaGithubAPI(config.GithubClient, *repoSelection, config.Stats)
 		if err != nil {
-			return err
+			return reposToIterate, err
 		}
 
 		reposToIterate = githubRepos
@@ -230,7 +226,7 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 	case ExplicitReposOnCommandLine, ReposViaStdIn:
 		githubRepos, err := fetchUserProvidedReposViaGithubAPI(config.GithubClient, *repoSelection, config.Stats)
 		if err != nil {
-			return err
+			return reposToIterate, err
 		}
 
 		reposToIterate = githubRepos // Update the count of number of repos the tool read in from explicit --repo flags
@@ -238,7 +234,7 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 
 	default:
 		// We've got no repos to iterate on, so return an error
-		return errors.WithStackTrace(types.NoValidReposFoundAfterFilteringErr{})
+		return reposToIterate, errors.WithStackTrace(types.NoValidReposFoundAfterFilteringErr{})
 	}
 
 	// Track the repos selected for processing
@@ -251,11 +247,5 @@ func OperateOnRepos(config *config.GitXargsConfig) error {
 		}).Debug("Repo will have all targeted scripts run against it")
 	}
 
-	// Now that we've gathered the repos we're going to operate on, do the actual processing by running the
-	// user-defined scripts against each repo and handling the resulting git operations that follow
-	if _, err := ProcessRepos(config, reposToIterate); err != nil {
-		return err
-	}
-
-	return nil
+	return reposToIterate, nil
 }
